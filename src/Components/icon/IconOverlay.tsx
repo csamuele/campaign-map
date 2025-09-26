@@ -47,6 +47,7 @@ export const IconOverlay = forwardRef<{ update: () => void } | null, IconProps>(
     // base size used for drawing and positioning (image pixels * iconScale)
     const baseSize = { width: (image?.width ?? 96) * iconScale, height: (image?.height ?? 64) * iconScale };
     const colorStr = `rgb(${color.r},${color.g},${color.b})`;
+    const allowIconClick = localStorage.getItem('allowIconClick') === 'true';
     const update = useCallback(() => {
       const stage = stageRef.current;
       const group = groupRef.current;
@@ -105,9 +106,11 @@ export const IconOverlay = forwardRef<{ update: () => void } | null, IconProps>(
         x={0}
         y={0}
         onClick={() => {
+          if (!allowIconClick) return;
           if (typeof onOpenEditor === 'function') onOpenEditor?.(id)
         }}
         onMouseEnter={(e: Konva.KonvaEventObject<MouseEvent>) => {
+          if (!allowIconClick) return;
           // set cursor to pointer when hovering the icon and save prior cursor
           const stage = e.target.getStage();
           const container = stage && stage.container();
@@ -127,9 +130,7 @@ export const IconOverlay = forwardRef<{ update: () => void } | null, IconProps>(
           const container = stage && stage.container();
           if (container) {
             try {
-              const prev = (container as HTMLElement).dataset.prevCursor || '';
-              (container as HTMLElement).style.cursor = prev;
-              delete (container as HTMLElement).dataset.prevCursor;
+              (container as HTMLElement).style.cursor = 'grab';
             } catch {
               /* ignore */
             }
