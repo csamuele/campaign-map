@@ -13,8 +13,8 @@ export const MyStage: React.FC = () => {
   const width = window.innerWidth;
   const height = window.innerHeight;
   const stageRef = useRef<StageType | null>(null);
-  const mapImgSource = '/src/assets/map.svg';
-  const volcanoImgSource = '/src/assets/volcano.svg';
+  const mapImgSource = '/map.svg';
+  const volcanoImgSource = '/volcano.svg';
   const [map] = useImage(mapImgSource);
 
   // anchors in map (image) pixel coordinates
@@ -190,7 +190,7 @@ export const MyStage: React.FC = () => {
   // preload achievement audio once
   useEffect(() => {
     try {
-      const a = new Audio('/src/assets/acheivement.mp3');
+      const a = new Audio('/acheivement.mp3');
       a.preload = 'auto';
       achievementAudioRef.current = a;
     } catch (err) {
@@ -202,7 +202,7 @@ export const MyStage: React.FC = () => {
   // play sound once when puzzleSolved becomes true
   useEffect(() => {
     if (!puzzleSolved) return;
-    const a = achievementAudioRef.current ?? new Audio('/src/assets/acheivement.mp3');
+    const a = achievementAudioRef.current ?? new Audio('/acheivement.mp3');
     // attempt to play; caller likely initiated from a user gesture (submit)
     a.play().catch((err) => {
       // log and ignore playback errors (autoplay policies, etc.)
@@ -252,7 +252,7 @@ export const MyStage: React.FC = () => {
             id="waterfall"
             ref={waterfallRefCallback}
             stageRef={stageRef}
-            imageSrc={'/src/assets/waterfall.svg'}
+            imageSrc={'/waterfall.svg'}
             anchor={waterfallAnchor}
             iconScale={4}
             onOpenEditor={(maybe) => openEditorFor(maybe ? `id:${maybe}` : undefined)}
@@ -263,7 +263,7 @@ export const MyStage: React.FC = () => {
             id="cave"
             ref={caveRefCallback}
             stageRef={stageRef}
-            imageSrc={'/src/assets/cave.svg'}
+            imageSrc={'/cave.svg'}
             anchor={caveAnchor}
             iconScale={4}
             onOpenEditor={(maybe) => openEditorFor(maybe ? `id:${maybe}` : undefined)}
@@ -273,7 +273,7 @@ export const MyStage: React.FC = () => {
 			id="chest"
 			ref={chestRefCallback}
 			stageRef={stageRef}
-			imageSrc={'/src/assets/chest.svg'}
+			imageSrc={'/chest.svg'}
 			anchor={chestAnchor}
 			iconScale={0.25}
 			// onOpenEditor={(maybe) => openEditorFor(maybe ? `id:${maybe}` : undefined)}
