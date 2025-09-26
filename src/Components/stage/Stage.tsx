@@ -23,7 +23,7 @@ export const MyStage: React.FC = () => {
   const volcanoAnchor = { x: 352, y: 856 };
   const waterfallAnchor = { x: 650, y: 985 };
   const caveAnchor = { x: 108, y: 413 };
-  const chestAnchor = { x: 524, y: 600 };
+  const chestAnchor = { x: 525, y: 597 };
 
   // icon colors
   const volcanoColor = { r: 255, g: 69, b: 0 }; // orange-red
@@ -89,9 +89,9 @@ export const MyStage: React.FC = () => {
     setPointerMapPos({ x: pointerMap.x, y: pointerMap.y });
 
     const d = {
-      volcano: Math.round(Math.hypot(pointerMap.x - volcanoAnchor.x, pointerMap.y - volcanoAnchor.y)),
-      waterfall: Math.round(Math.hypot(pointerMap.x - waterfallAnchor.x, pointerMap.y - waterfallAnchor.y)),
-      cave: Math.round(Math.hypot(pointerMap.x - caveAnchor.x, pointerMap.y - caveAnchor.y)),
+      volcano: (Math.hypot(pointerMap.x - volcanoAnchor.x, pointerMap.y - volcanoAnchor.y)/20),
+      waterfall: (Math.hypot(pointerMap.x - waterfallAnchor.x, pointerMap.y - waterfallAnchor.y)/20),
+      cave: (Math.hypot(pointerMap.x - caveAnchor.x, pointerMap.y - caveAnchor.y)/20),
     };
     setDistances(d);
   };
@@ -303,7 +303,7 @@ export const MyStage: React.FC = () => {
 			  const caveValue = localStorage.getItem(`icon:cave`) || '';
 			  const volcanoValue = localStorage.getItem(`icon:volcano`) || '';
 			  const waterfallValue = localStorage.getItem(`icon:waterfall`) || '';
-			  if (caveValue === '456' && volcanoValue === '309' && waterfallValue === '406') {
+			  if (caveValue === '22.78' && volcanoValue === '15.58' && waterfallValue === '20.39') {
 				setPuzzleSolved(true);
 
 			  }

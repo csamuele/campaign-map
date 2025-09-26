@@ -19,7 +19,7 @@ export const MapCircles: React.FC<Props> = ({ items }) => {
         if (!raw) return null;
         const n = Number(raw);
         if (!isFinite(n) || n <= 0) return null;
-        const mapRadius = n;
+        const mapRadius = n * 20;
         const colorStr = it.color ? `rgb(${it.color.r},${it.color.g},${it.color.b})` : 'rgba(255,0,0,0.9)';
         return (
           <Circle
