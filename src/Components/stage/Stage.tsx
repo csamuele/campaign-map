@@ -16,7 +16,7 @@ export const MyStage: React.FC = () => {
   const height = window.innerHeight;
   const stageRef = useRef<StageType | null>(null);
   const mapImgSource = '/map.svg';
-  const volcanoImgSource = '/volcano.svg';
+
   const [map] = useImage(mapImgSource);
 
   // anchors in map (image) pixel coordinates
@@ -243,9 +243,9 @@ export const MyStage: React.FC = () => {
             id="volcano"
             ref={volcanoRefCallback}
             stageRef={stageRef}
-            imageSrc={volcanoImgSource}
+            imageSrc={'/volcano.svg'}
             anchor={volcanoAnchor}
-            iconScale={4}
+            iconScale={5}
             onOpenEditor={(maybe) => openEditorFor(maybe ? `id:${maybe}` : undefined)}
 			color={volcanoColor}
           />
