@@ -3,11 +3,16 @@ import { Group, Image, Line, Rect } from 'react-konva';
 import type Konva from 'konva';
 import type { Stage as StageType } from 'konva/lib/Stage';
 import { useImage } from 'react-konva-utils';
+// import { IconInput } from 'Components/icon';
 
 export type IconProps = {
   stageRef: React.RefObject<StageType | null>;
   imageSrc: string;
   anchor: { x: number; y: number };
+  // unique id/key for this icon (used by parent to identify the icon)
+  id?: string;
+  // optional callback when the icon is clicked to open an editor
+  onOpenEditor?: (currentText?: string) => void;
   yOffset?: number;
   boxPadding?: number;
   boxCorner?: number;
@@ -15,14 +20,17 @@ export type IconProps = {
   scaleMode?: 'screen' | 'map'; // screen = fixed pixel size, map = scales with map
   iconScale?: number; // multiplier for icon size (default 1)
   maxSize?: number; // optional maximum on-screen size in pixels (width)
+  color?: { r: number; g: number; b: number};
 };
 
 export const IconOverlay = forwardRef<{ update: () => void } | null, IconProps>(
-  (
+    (
     {
       stageRef,
       imageSrc,
       anchor,
+      id,
+      onOpenEditor,
       yOffset = 24,
       boxPadding = 8,
       boxCorner = 8,
@@ -30,6 +38,7 @@ export const IconOverlay = forwardRef<{ update: () => void } | null, IconProps>(
       scaleMode = 'screen',
       iconScale = 1,
       maxSize = 75,
+      color = { r: 255, g: 0, b: 0 },
     },
     ref
   ) => {
@@ -37,7 +46,7 @@ export const IconOverlay = forwardRef<{ update: () => void } | null, IconProps>(
     const groupRef = useRef<Konva.Group | null>(null);
     // base size used for drawing and positioning (image pixels * iconScale)
     const baseSize = { width: (image?.width ?? 96) * iconScale, height: (image?.height ?? 64) * iconScale };
-
+    const colorStr = `rgb(${color.r},${color.g},${color.b})`;
     const update = useCallback(() => {
       const stage = stageRef.current;
       const group = groupRef.current;
@@ -90,8 +99,43 @@ export const IconOverlay = forwardRef<{ update: () => void } | null, IconProps>(
     useImperativeHandle(ref, () => ({ update }), [update]);
 
     return (
-      <Group ref={groupRef} x={0} y={0} onClick={() => {window.alert('Icon clicked!')}}
->
+      
+      <Group
+        ref={groupRef}
+        x={0}
+        y={0}
+        onClick={() => {
+          if (typeof onOpenEditor === 'function') onOpenEditor?.(id)
+        }}
+        onMouseEnter={(e: Konva.KonvaEventObject<MouseEvent>) => {
+          // set cursor to pointer when hovering the icon and save prior cursor
+          const stage = e.target.getStage();
+          const container = stage && stage.container();
+          if (container) {
+            try {
+              // store previous cursor so we can restore it
+              (container as HTMLElement).dataset.prevCursor = (container as HTMLElement).style.cursor || '';
+            } catch {
+              /* ignore */
+            }
+            (container as HTMLElement).style.cursor = 'pointer';
+          }
+        }}
+        onMouseLeave={(e: Konva.KonvaEventObject<MouseEvent>) => {
+          // restore the cursor that was present before hovering
+          const stage = e.target.getStage();
+          const container = stage && stage.container();
+          if (container) {
+            try {
+              const prev = (container as HTMLElement).dataset.prevCursor || '';
+              (container as HTMLElement).style.cursor = prev;
+              delete (container as HTMLElement).dataset.prevCursor;
+            } catch {
+              /* ignore */
+            }
+          }
+        }}
+      >
         <Rect
           x={-baseSize.width / 2 - boxPadding}
           y={-baseSize.height - yOffset - boxPadding}
@@ -111,11 +155,10 @@ export const IconOverlay = forwardRef<{ update: () => void } | null, IconProps>(
           width={baseSize.width}
           height={baseSize.height}
         />
-        <Line points={[-8, -8, 8, 8]} stroke="red" strokeWidth={3} lineCap="round" />
-        <Line points={[-8, 8, 8, -8]} stroke="red" strokeWidth={3} lineCap="round" />
+        <Line points={[-8, -8, 8, 8]} stroke={colorStr} strokeWidth={3} lineCap="round" />
+        <Line points={[-8, 8, 8, -8]} stroke={colorStr} strokeWidth={3} lineCap="round" />
       </Group>
     );
   }
 );
-
 export default IconOverlay;

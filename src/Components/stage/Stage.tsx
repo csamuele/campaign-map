@@ -1,187 +1,324 @@
+import React, { useEffect, useRef, useState } from 'react';
 import { Stage, Layer, Image } from 'react-konva';
 import type { Stage as StageType } from 'konva/lib/Stage';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { useImage } from 'react-konva-utils';
-import { useRef, useEffect } from 'react';
-import { useOverlayRegistry, IconOverlay } from 'Components/icon';
+import { useOverlayRegistry, IconOverlay, IconInput } from 'Components/icon';
+import DistanceLegend from './DistanceLegend';
+import MapCircles from './MapCircles';
 
-export const MyStage = () => {
-	const width = window.innerWidth;
-	const height = window.innerHeight;
-	const stageRef = useRef<StageType | null>(null);
-	const mapImgSource = '/src/assets/map.svg';
-	const volcanoImgSource = '/src/assets/volcano.svg';
-	const [map] = useImage(mapImgSource);
+const MAP_SIZE = { width: 820, height: 1310 };
 
-	// Volcano overlay: anchor in map (image) pixel coordinates.
-	// Change these to the correct map-space anchor for your SVG.
-	const volcanoAnchor = { x: 352, y: 856 };
-	// vertical gap (pixels) between the red X and the bottom of the volcano image
+export const MyStage: React.FC = () => {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const stageRef = useRef<StageType | null>(null);
+  const mapImgSource = '/src/assets/map.svg';
+  const volcanoImgSource = '/src/assets/volcano.svg';
+  const [map] = useImage(mapImgSource);
 
-	// use overlay registry hook (DRY registration + updateAll)
-	const { makeRef, updateAll } = useOverlayRegistry();
-	// callback refs for each overlay (returned by makeRef)
-	const volcanoRefCallback = makeRef();
-	const waterfallRefCallback = makeRef();
-    const caveRefCallback = makeRef();
+  // anchors in map (image) pixel coordinates
+  const volcanoAnchor = { x: 352, y: 856 };
+  const waterfallAnchor = { x: 650, y: 985 };
+  const caveAnchor = { x: 108, y: 413 };
+  const chestAnchor = { x: 524, y: 600 };
 
-	// limits
-	const MIN_SCALE = 0.5;
-	const MAX_SCALE = 10;
+  // icon colors
+  const volcanoColor = { r: 255, g: 69, b: 0 }; // orange-red
+  const waterfallColor = { r: 30, g: 144, b: 255 }; // dodger blue
+  const caveColor = { r: 128, g: 0, b: 128 }; // purple
+  const chestColor = { r: 255, g: 215, b: 0 }; // gold
 
-	const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+  const { makeRef, updateAll } = useOverlayRegistry();
+  const volcanoRefCallback = makeRef();
+  const waterfallRefCallback = makeRef();
+  const caveRefCallback = makeRef();
+  const chestRefCallback = makeRef();
 
-	const getImageSize = () => {
-		const imgEl = map as HTMLImageElement | undefined;
-		const iw = imgEl ? (imgEl.naturalWidth || imgEl.width || width) : width;
-		const ih = imgEl ? (imgEl.naturalHeight || imgEl.height || height) : height;
-		return { iw, ih };
-	};
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorInitial, setEditorInitial] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-	// center horizontally after image loads
-	useEffect(() => {
-		const stage = stageRef.current;
-		if (!stage || !map) return;
-		const imgEl = map as HTMLImageElement | undefined;
-		const iw = imgEl ? (imgEl.naturalWidth || imgEl.width || width) : width;
-		const ih = imgEl ? (imgEl.naturalHeight || imgEl.height || height) : height;
-		const scale = stage.scaleX() || 1;
-		const scaledW = iw * scale;
-		// compute horizontal center or clamp if larger
-		const x = scaledW <= width ? (width - scaledW) / 2 : clamp(stage.x(), Math.min(0, width - scaledW), 0);
-		// clamp vertical to keep image visible (don't change if already set)
-		const minY = Math.min(0, height - ih * scale);
-		const y = clamp(stage.y(), minY, 0);
-		stage.position({ x, y });
-	}, [map, width, height]);
+  const [puzzleSolved, setPuzzleSolved] = useState(false);
+  const achievementAudioRef = useRef<HTMLAudioElement | null>(null);
 
-	const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
-		e.evt.preventDefault();
+  const openEditorFor = (initialOrId?: string) => {
+    const maybeKey = initialOrId;
+    if (maybeKey && maybeKey.startsWith('id:')) {
+      const id = maybeKey.slice(3);
+      const raw = localStorage.getItem(`icon:${id}`);
+      const stage = stageRef.current;
+      const scale = stage ? stage.scaleX() || 1 : 1;
+      if (raw) {
+        const n = Number(raw);
+        setEditorInitial(String(Math.round(n * scale)));
+      } else {
+        setEditorInitial('');
+      }
+      setEditingId(id);
+      setEditorOpen(true);
+      return;
+    }
+    setEditorInitial(initialOrId || '');
+    setEditorOpen(true);
+  };
 
-		const stage = stageRef.current;
-		if (!stage) return;
-		const oldScale = stage.scaleX();
-		const pointer = stage.getPointerPosition();
-		if (!pointer) return;
+  const [distances, setDistances] = useState<Record<string, number>>({});
+  const [pointerMapPos, setPointerMapPos] = useState<{ x: number; y: number } | null>(null);
 
-		const mousePointTo = {
-			x: (pointer.x - stage.x()) / oldScale,
-			y: (pointer.y - stage.y()) / oldScale,
-		};
+  // Helpers ---------------------------------------------------------------
+  // Use the hard-coded MAP_SIZE constant instead of dynamically querying the image.
 
-		// how to scale? Zoom in? Or zoom out?
-		const scrollspeed = 10;
-		let direction = e.evt.deltaY > 0 ? -1 : 1;
+  const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
-		// when we zoom on trackpad, e.evt.ctrlKey is true
-		// in that case lets revert direction
-		if (e.evt.ctrlKey) {
-			direction = -direction;
-		}
+  // Mouse move: convert pointer to map coordinates and compute distances
+  const handleMouseMoveKonva = () => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
 
-		const scaleBy = 1 + scrollspeed / 100;
-		let newScale =
-			direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
-		// clamp scale
-		newScale = clamp(newScale, MIN_SCALE, MAX_SCALE);
+    const scale = stage.scaleX() || 1;
+    const stagePos = stage.position();
+    const pointerMap = {
+      x: (pointer.x - stagePos.x) / scale,
+      y: (pointer.y - stagePos.y) / scale,
+    };
+    setPointerMapPos({ x: pointerMap.x, y: pointerMap.y });
 
-		stage.scale({ x: newScale, y: newScale });
+    const d = {
+      volcano: Math.round(Math.hypot(pointerMap.x - volcanoAnchor.x, pointerMap.y - volcanoAnchor.y)),
+      waterfall: Math.round(Math.hypot(pointerMap.x - waterfallAnchor.x, pointerMap.y - waterfallAnchor.y)),
+      cave: Math.round(Math.hypot(pointerMap.x - caveAnchor.x, pointerMap.y - caveAnchor.y)),
+    };
+    setDistances(d);
+  };
 
-		const newPos = {
-			x: pointer.x - mousePointTo.x * newScale,
-			y: pointer.y - mousePointTo.y * newScale,
-		};
+  const handleMouseLeaveKonva = () => {
+    setDistances({});
+    setPointerMapPos(null);
+  };
 
-		// clamp position so image stays covering the canvas
-		const { iw, ih } = getImageSize();
-		const scaledW = iw * newScale;
-		const scaledH = ih * newScale;
-		// If image is narrower than stage, center horizontally
-		const minX = scaledW <= width ? (width - scaledW) / 2 : Math.min(0, width - scaledW);
-		const maxX = scaledW <= width ? (width - scaledW) / 2 : 0;
-		const minY = Math.min(0, height - scaledH);
-		const maxY = 0;
+  // Ctrl/meta + click -> copy legend values to clipboard
+  const handleStageClick = async (e: KonvaEventObject<MouseEvent>) => {
+    if (!(e && e.evt && (e.evt.ctrlKey || e.evt.metaKey))) return;
+    const lines = ['volcano', 'waterfall', 'cave'].map((id) => `${id}: ${distances[id] ?? '—'} px`);
+    const text = lines.join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      console.log('Copied distances to clipboard');
+    } catch (err) {
+      // fallback: show prompt and log error for diagnostics
+      // (navigator.clipboard may be unavailable in some environments)
+      console.warn('clipboard write failed', err);
+      window.prompt('Copy distances', text);
+    }
+  };
 
-		const clamped = {
-			x: clamp(newPos.x, minX, maxX),
-			y: clamp(newPos.y, minY, maxY),
-		};
+  // drag: clamp stage position so the map cannot be dragged out of view
+  const handleDragMove = () => {
+    const stage = stageRef.current;
+    if (!stage || !map) return;
+    const scale = stage.scaleX() || 1;
+    const pos = stage.position();
+  const { width: iw, height: ih } = MAP_SIZE;
+    const scaledW = iw * scale;
+    const scaledH = ih * scale;
+    // center horizontally when narrower than viewport
+    const minX = scaledW <= width ? (width - scaledW) / 2 : Math.min(0, width - scaledW);
+    const maxX = scaledW <= width ? (width - scaledW) / 2 : 0;
+    const minY = Math.min(0, height - scaledH);
+    const maxY = 0;
+    const clamped = {
+      x: clamp(pos.x, minX, maxX),
+      y: clamp(pos.y, minY, maxY),
+    };
+    // only set if different to avoid extra redraws
+    if (clamped.x !== pos.x || clamped.y !== pos.y) {
+      stage.position(clamped);
+    }
+    updateAll();
+  };
 
-		stage.position(clamped);
+  // wheel/zoom: zoom towards pointer and clamp position afterwards
+  const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
+    e.evt.preventDefault();
+    const stage = stageRef.current;
+    if (!stage || !map) return;
+    const oldScale = stage.scaleX() || 1;
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
 
-	// update overlays
-	updateAll();
-	};
+    const scaleBy = 1.05;
+    const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+    const clampedScale = clamp(newScale, 0.2, 6);
 
-	const handleDragMove = () => {
-		const stage = stageRef.current;
-		if (!stage || !map) return;
-		const scale = stage.scaleX();
-		const pos = stage.position();
-		const { iw, ih } = getImageSize();
-		const scaledW = iw * scale;
-		const scaledH = ih * scale;
-		// center horizontally when narrower than viewport
-		const minX = scaledW <= width ? (width - scaledW) / 2 : Math.min(0, width - scaledW);
-		const maxX = scaledW <= width ? (width - scaledW) / 2 : 0;
-		const minY = Math.min(0, height - scaledH);
-		const maxY = 0;
-		const clamped = {
-			x: clamp(pos.x, minX, maxX),
-			y: clamp(pos.y, minY, maxY),
-		};
-		// only set if different to avoid extra redraws
-		if (clamped.x !== pos.x || clamped.y !== pos.y) {
-			stage.position(clamped);
-		}
+    const mousePointTo = {
+      x: (pointer.x - stage.x()) / oldScale,
+      y: (pointer.y - stage.y()) / oldScale,
+    };
 
-	// update overlays
-	updateAll();
-	};
+    stage.scale({ x: clampedScale, y: clampedScale });
 
-	// initial update after map loads (update overlays)
-	useEffect(() => {
-		if (map) updateAll();
-	}, [map, updateAll]);
+    const newPos = {
+      x: pointer.x - mousePointTo.x * clampedScale,
+      y: pointer.y - mousePointTo.y * clampedScale,
+    };
 
-	return (
-		<Stage
-			width={width}
-			height={height}
-			ref={stageRef}
-			onWheel={handleWheel}
-			draggable={true}
-			onDragMove={handleDragMove}
-			style={{ cursor: 'grab' }}
-		>
-			<Layer>
-				<Image image={map} x={0} y={0} style={{ cursor: 'grab' }} />
-				{/* volcano Group is positioned at the anchor point (map coords).
-					The volcano Image inside is offset so its bottom-center sits at the anchor.
-					Because the Group and children live in map coordinates, they will scale/translate with the Stage,
-					making the volcano appear to grow/shrink as the viewer zooms in/out. */}
-				<IconOverlay
-					ref={volcanoRefCallback}
-					stageRef={stageRef}
-					imageSrc={volcanoImgSource}
-					anchor={volcanoAnchor}
-					iconScale={4}
-				/>
-				<IconOverlay
-					ref={waterfallRefCallback}
-					imageSrc="/src/assets/waterfall.svg"
-					stageRef={stageRef}
-					anchor={{ x: 650, y: 985 }}
-					iconScale={4}
-				/>
-                <IconOverlay
-                    ref={caveRefCallback}
-                    imageSrc="/src/assets/cave.svg"
-                    stageRef={stageRef}
-                    anchor={{ x: 108, y: 413 }}
-					iconScale={4}
-				/>
-			</Layer>
-		</Stage>
-	);
+  // clamp new position to image bounds (use hard-coded MAP_SIZE)
+  const { width: iw, height: ih } = MAP_SIZE;
+    const scaledW = iw * clampedScale;
+    const scaledH = ih * clampedScale;
+    const minX = scaledW <= width ? (width - scaledW) / 2 : Math.min(0, width - scaledW);
+    const maxX = scaledW <= width ? (width - scaledW) / 2 : 0;
+    const minY = Math.min(0, height - scaledH);
+    const maxY = 0;
+
+    const clampedPos = {
+      x: clamp(newPos.x, minX, maxX),
+      y: clamp(newPos.y, minY, maxY),
+    };
+    stage.position(clampedPos);
+    updateAll();
+  };
+
+  // initial update after map loads (update overlays)
+  useEffect(() => {
+    if (map) updateAll();
+  }, [map, updateAll]);
+
+  // preload achievement audio once
+  useEffect(() => {
+    try {
+      const a = new Audio('/src/assets/acheivement.mp3');
+      a.preload = 'auto';
+      achievementAudioRef.current = a;
+    } catch (err) {
+      // ignore; audio will be created on-demand later
+      console.warn('failed to create achievement audio', err);
+    }
+  }, []);
+
+  // play sound once when puzzleSolved becomes true
+  useEffect(() => {
+    if (!puzzleSolved) return;
+    const a = achievementAudioRef.current ?? new Audio('/src/assets/acheivement.mp3');
+    // attempt to play; caller likely initiated from a user gesture (submit)
+    a.play().catch((err) => {
+      // log and ignore playback errors (autoplay policies, etc.)
+      console.warn('achievement audio play failed', err);
+    });
+  }, [puzzleSolved]);
+
+  return (
+    <>
+      <Stage
+        width={width}
+        height={height}
+        ref={stageRef}
+        onWheel={handleWheel}
+        draggable={true}
+        onDragMove={handleDragMove}
+        onMouseMove={handleMouseMoveKonva}
+        onMouseLeave={handleMouseLeaveKonva}
+        onClick={handleStageClick}
+        style={{ cursor: 'grab' }}
+      >
+        <Layer>
+          {/* Background map image (non-interactive) */}
+          {map && <Image image={map as HTMLImageElement} x={0} y={0} listening={false} width={MAP_SIZE.width} height={MAP_SIZE.height} />}
+
+          {/* Circles rendered in map-space */}
+          <MapCircles
+            items={[
+              { id: 'volcano', anchor: volcanoAnchor, color: volcanoColor },
+              { id: 'waterfall', anchor: waterfallAnchor, color: waterfallColor },
+              { id: 'cave', anchor: caveAnchor, color: caveColor },
+            ]}
+          />
+
+          <IconOverlay
+            id="volcano"
+            ref={volcanoRefCallback}
+            stageRef={stageRef}
+            imageSrc={volcanoImgSource}
+            anchor={volcanoAnchor}
+            iconScale={4}
+            onOpenEditor={(maybe) => openEditorFor(maybe ? `id:${maybe}` : undefined)}
+			color={volcanoColor}
+          />
+
+          <IconOverlay
+            id="waterfall"
+            ref={waterfallRefCallback}
+            stageRef={stageRef}
+            imageSrc={'/src/assets/waterfall.svg'}
+            anchor={waterfallAnchor}
+            iconScale={4}
+            onOpenEditor={(maybe) => openEditorFor(maybe ? `id:${maybe}` : undefined)}
+			color={waterfallColor}
+          />
+
+          <IconOverlay
+            id="cave"
+            ref={caveRefCallback}
+            stageRef={stageRef}
+            imageSrc={'/src/assets/cave.svg'}
+            anchor={caveAnchor}
+            iconScale={4}
+            onOpenEditor={(maybe) => openEditorFor(maybe ? `id:${maybe}` : undefined)}
+			color={caveColor}
+          />
+		 {puzzleSolved && <IconOverlay
+			id="chest"
+			ref={chestRefCallback}
+			stageRef={stageRef}
+			imageSrc={'/src/assets/chest.svg'}
+			anchor={chestAnchor}
+			iconScale={0.25}
+			// onOpenEditor={(maybe) => openEditorFor(maybe ? `id:${maybe}` : undefined)}
+			color={chestColor}
+          />}
+
+          {/* Scale bar rendered in map coordinates (full map width) */}
+        </Layer>
+      </Stage>
+
+  <DistanceLegend distances={distances} pointerMap={pointerMapPos} />
+
+      { /* render portal outside the Konva Stage so it mounts into the DOM */ }
+      <IconInput
+        open={editorOpen}
+        initialValue={editorInitial}
+        title={editingId ? `Set radius for ${editingId}` : 'Input Distance'}
+        onSubmit={(v) => {
+          if (editingId) {
+            const num = Number(v);
+            if (!v || !isFinite(num) || num <= 0) {
+              localStorage.removeItem(`icon:${editingId}`);
+            } else {
+              localStorage.setItem(`icon:${editingId}`, v);
+			  const caveValue = localStorage.getItem(`icon:cave`) || '';
+			  const volcanoValue = localStorage.getItem(`icon:volcano`) || '';
+			  const waterfallValue = localStorage.getItem(`icon:waterfall`) || '';
+			  if (caveValue === '456' && volcanoValue === '309' && waterfallValue === '406') {
+				setPuzzleSolved(true);
+
+			  }
+            }
+          }
+          console.log('Label submitted', v, 'for', editingId);
+          setEditorOpen(false);
+          setEditingId(null);
+        }}
+        onClose={() => {
+          setEditorOpen(false);
+          setEditingId(null);
+        }}
+      />
+    </>
+  );
 };
+
+export default MyStage;
+
