@@ -10,6 +10,8 @@ import MapCircles from './MapCircles';
 const MAP_SIZE = { width: 820, height: 1310 };
 
 export const MyStage: React.FC = () => {
+  const isAdmin = localStorage.getItem('isAdmin') === 'true';
+
   const width = window.innerWidth;
   const height = window.innerHeight;
   const stageRef = useRef<StageType | null>(null);
@@ -284,7 +286,7 @@ export const MyStage: React.FC = () => {
         </Layer>
       </Stage>
 
-  <DistanceLegend distances={distances} pointerMap={pointerMapPos} />
+  {isAdmin && <DistanceLegend distances={distances} pointerMap={pointerMapPos} />}
 
       { /* render portal outside the Konva Stage so it mounts into the DOM */ }
       <IconInput
