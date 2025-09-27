@@ -4,6 +4,7 @@ import type { Stage as StageType } from 'konva/lib/Stage';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { useImage } from 'react-konva-utils';
 import { useOverlayRegistry, IconOverlay, IconInput } from 'Components/icon';
+import ChestCongrats from 'Components/icon/ChestCongrats';
 import DistanceLegend from './DistanceLegend';
 import MapCircles from './MapCircles';
 
@@ -23,7 +24,7 @@ export const MyStage: React.FC = () => {
   const volcanoAnchor = { x: 352, y: 856 };
   const waterfallAnchor = { x: 650, y: 985 };
   const caveAnchor = { x: 108, y: 413 };
-  const chestAnchor = { x: 525, y: 597 };
+  const chestAnchor = { x: 524.99, y: 597.343 };
 
   // icon colors
   const volcanoColor = { r: 255, g: 69, b: 0 }; // orange-red
@@ -43,17 +44,16 @@ export const MyStage: React.FC = () => {
 
   const [puzzleSolved, setPuzzleSolved] = useState(false);
   const achievementAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [showChestCongrats, setShowChestCongrats] = useState(false);
 
   const openEditorFor = (initialOrId?: string) => {
     const maybeKey = initialOrId;
     if (maybeKey && maybeKey.startsWith('id:')) {
       const id = maybeKey.slice(3);
       const raw = localStorage.getItem(`icon:${id}`);
-      const stage = stageRef.current;
-      const scale = stage ? stage.scaleX() || 1 : 1;
       if (raw) {
         const n = Number(raw);
-        setEditorInitial(String(Math.round(n * scale)));
+        setEditorInitial(String(n));
       } else {
         setEditorInitial('');
       }
@@ -153,7 +153,8 @@ export const MyStage: React.FC = () => {
 
     const scaleBy = 1.05;
     const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
-    const clampedScale = clamp(newScale, 0.2, 6);
+  // adjust here to controll the amount you can zoom
+  const clampedScale = clamp(newScale, 0.2, 200);
 
     const mousePointTo = {
       x: (pointer.x - stage.x()) / oldScale,
@@ -187,7 +188,7 @@ export const MyStage: React.FC = () => {
   // initial update after map loads (update overlays)
   useEffect(() => {
     if (map) updateAll();
-  }, [map, updateAll]);
+  }, [map, updateAll, puzzleSolved]);
 
   // preload achievement audio once
   useEffect(() => {
@@ -237,6 +238,7 @@ export const MyStage: React.FC = () => {
               { id: 'waterfall', anchor: waterfallAnchor, color: waterfallColor },
               { id: 'cave', anchor: caveAnchor, color: caveColor },
             ]}
+            stageRef={stageRef}
           />
 
           <IconOverlay
@@ -271,16 +273,19 @@ export const MyStage: React.FC = () => {
             onOpenEditor={(maybe) => openEditorFor(maybe ? `id:${maybe}` : undefined)}
 			color={caveColor}
           />
-		 {puzzleSolved && <IconOverlay
-			id="chest"
-			ref={chestRefCallback}
-			stageRef={stageRef}
-			imageSrc={'/chest.svg'}
-			anchor={chestAnchor}
-			iconScale={0.25}
-			// onOpenEditor={(maybe) => openEditorFor(maybe ? `id:${maybe}` : undefined)}
-			color={chestColor}
-          />}
+   	 {puzzleSolved && <>
+   		<IconOverlay
+   		id="chest"
+   		ref={chestRefCallback}
+   		stageRef={stageRef}
+   		imageSrc={'/chest.svg'}
+   		anchor={chestAnchor}
+   		iconScale={0.25}
+   		onClick={() => setShowChestCongrats(true)}
+   		color={chestColor}
+   		/>
+   		<ChestCongrats stageRef={stageRef} anchor={chestAnchor} visible={showChestCongrats} onClose={() => setShowChestCongrats(false)} />
+   	</>}
 
           {/* Scale bar rendered in map coordinates (full map width) */}
         </Layer>
@@ -303,7 +308,7 @@ export const MyStage: React.FC = () => {
 			  const caveValue = localStorage.getItem(`icon:cave`) || '';
 			  const volcanoValue = localStorage.getItem(`icon:volcano`) || '';
 			  const waterfallValue = localStorage.getItem(`icon:waterfall`) || '';
-			  if (caveValue === '22.78' && volcanoValue === '15.58' && waterfallValue === '20.39') {
+			  if (caveValue === '22.796' && volcanoValue === '15.559' && waterfallValue === '20.366') {
 				setPuzzleSolved(true);
 
 			  }

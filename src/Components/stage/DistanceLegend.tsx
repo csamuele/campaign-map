@@ -31,7 +31,7 @@ export const DistanceLegend: React.FC<Props> = ({ distances, pointerMap }) => {
       {/* pointer map coordinates */}
       <div style={{ minWidth: 180, textAlign: 'right', pointerEvents: 'auto' }}>
         <strong>Mouse (map):</strong>{' '}
-        {pointerMap ? `${Math.round(pointerMap.x)}, ${Math.round(pointerMap.y)} px` : '—'}
+        {pointerMap ? `${(pointerMap.x)}, ${(pointerMap.y)} px` : '—'}
       </div>
     </div>
   );
